@@ -1,5 +1,6 @@
 {
-    "name": "reldens-utils",
+    "name": "@reldens/utils",
+    "scope": "@reldens",
     "version": "0.1.0",
     "description": "Reldens - Utils",
     "source": true,
@@ -35,6 +36,7 @@
     "author": "Damian A. Pastorini",
     "license": "MIT",
     "main": "index.js",
+    "dependencies": {},
     "devDependencies": {
         "@babel/core": "^7.8.4",
         "@babel/runtime-corejs3": "^7.8.4",
