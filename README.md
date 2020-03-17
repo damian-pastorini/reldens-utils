@@ -2,7 +2,7 @@
 
 # Reldens - Utils
 
-### v0.1.1
+### v0.1.5
 - Logger
 - Error Manager
 - Events Manager

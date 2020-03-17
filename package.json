@@ -1,7 +1,7 @@
 {
     "name": "@reldens/utils",
     "scope": "@reldens",
-    "version": "0.1.2",
+    "version": "0.1.5",
     "description": "Reldens - Utils",
     "source": true,
     "homepage": "https://github.com/damian-pastorini/reldens-utils",
