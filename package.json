@@ -1,7 +1,7 @@
 {
     "name": "@reldens/utils",
     "scope": "@reldens",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Reldens - Utils",
     "source": true,
     "homepage": "https://github.com/damian-pastorini/reldens-utils",
@@ -36,6 +36,8 @@
     "author": "Damian A. Pastorini",
     "license": "MIT",
     "main": "index.js",
-    "dependencies": {},
+    "dependencies": {
+        "await-event-emitter": "^1.2.0"
+    },
     "devDependencies": {}
 }
