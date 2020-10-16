@@ -4,11 +4,8 @@
  *
  */
 
-const EventsManager = require('./lib/events-manager');
-
 module.exports = {
-    EventsManager,
-    EventsManagerSingleton: new EventsManager(),
+    EventsManager: require('./lib/events-manager'),
     ErrorManager: require('./lib/error-manager'),
     InteractionArea: require('./lib/interaction-area'),
     Logger: require('./lib/logger'),
