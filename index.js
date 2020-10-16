@@ -4,10 +4,13 @@
  *
  */
 
+const EventsManager = require('./lib/events-manager');
+
 module.exports = {
-    EventsManager: require('./lib/events-manager'),
+    EventsManager,
+    EventsManagerSingleton: new EventsManager(),
     ErrorManager: require('./lib/error-manager'),
     InteractionArea: require('./lib/interaction-area'),
     Logger: require('./lib/logger'),
-    sc: require('./lib/short-cuts')
+    sc: require('./lib/shortcuts')
 };
