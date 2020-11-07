@@ -1,7 +1,7 @@
 {
     "name": "@reldens/utils",
     "scope": "@reldens",
-    "version": "0.3.3",
+    "version": "0.3.4",
     "description": "Reldens - Utils",
     "author": "Damian A. Pastorini",
     "license": "MIT",
@@ -34,6 +34,6 @@
         "url": "https://github.com/damian-pastorini/reldens-utils/issues"
     },
     "dependencies": {
-        "await-event-emitter": "^1.2.0"
+        "await-event-emitter": "^2.0.1"
     }
 }
