@@ -2,11 +2,10 @@
 
 # Reldens - Utils
 
-### v0.3.4
+### Features
+
 - Interaction area calculation helper.
 - Shortcuts.
-
-### v0.1.5
 - Logger
 - Error Manager
 - Events Manager
