@@ -34,6 +34,6 @@
         "url": "https://github.com/damian-pastorini/reldens-utils/issues"
     },
     "dependencies": {
-        "await-event-emitter": "^2.0.1"
+        "await-event-emitter": "^2.0.2"
     }
 }
