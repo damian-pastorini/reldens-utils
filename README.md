@@ -10,6 +10,19 @@
 - Error Manager
 - Events Manager
 
+Need something specific?
+
+[Request a feature here: https://www.reldens.com/features-request](https://www.reldens.com/features-request)
+
+---
+
+## Documentation
+
+[https://www.reldens.com/documentation/skills](https://www.reldens.com/documentation/skills)
+
+
+---
+
 ### [Reldens](https://github.com/damian-pastorini/reldens/ "Reldens")
 
 ##### [By DwDeveloper](https://www.dwdeveloper.com/ "DwDeveloper")
