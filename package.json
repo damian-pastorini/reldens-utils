@@ -1,7 +1,7 @@
 {
     "name": "@reldens/utils",
     "scope": "@reldens",
-    "version": "0.4.5",
+    "version": "0.4.6",
     "description": "Reldens - Utils",
     "author": "Damian A. Pastorini",
     "license": "MIT",
@@ -15,6 +15,7 @@
     "keywords": [
         "reldens",
         "utils",
+        "shortcuts",
         "system",
         "game",
         "mmorpg",
