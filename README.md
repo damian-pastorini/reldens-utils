@@ -6,9 +6,9 @@
 
 - Interaction area calculation helper.
 - Shortcuts.
-- Logger
-- Error Manager
-- Events Manager
+- Logger.
+- Error Manager.
+- Events Manager.
 
 Need something specific?
 
@@ -18,7 +18,7 @@ Need something specific?
 
 ## Documentation
 
-[https://www.reldens.com/documentation/skills](https://www.reldens.com/documentation/skills)
+[https://www.reldens.com/documentation/utils/](https://www.reldens.com/documentation/utils/)
 
 
 ---
