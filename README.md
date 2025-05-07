@@ -5,10 +5,13 @@
 ### Features
 
 - Interaction area calculation helper.
+- Page range provider helper.
+- A validator interface and the SchemaValidator.
+- EnvVar for cast variables.
 - Shortcuts.
 - Logger.
 - Error Manager.
-- Events Manager.
+- Events Manager and Events Manager Singleton.
 
 Need something specific?
 

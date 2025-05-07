@@ -11,6 +11,7 @@ module.exports = {
     EventsManagerSingleton: new EventsManager(),
     ErrorManager: require('./lib/error-manager'),
     InteractionArea: require('./lib/interaction-area'),
+    PageRangeProvider: require('./lib/page-range-provider'),
     ValidatorInterface: require('./lib/validator-interface'),
     SchemaValidator: require('./lib/schema-validator'),
     EnvVar: require('./lib/env-var'),
