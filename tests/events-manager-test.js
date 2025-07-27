@@ -219,6 +219,63 @@ class TestEventsManager
         });
     }
 
+    testCheckMemoryLeaksMethod()
+    {
+        this.test('checkMemoryLeaks method works correctly', () => {
+            let emitter = new EventsManager();
+            let result = emitter.checkMemoryLeaks();
+            this.assert(true === result, 'Should return true for low listener count');
+            this.assert(false === emitter.hasLoggedMaxListeners, 'Should not have logged initially');
+        });
+    }
+
+    testMaxListenersDebugLogOnce()
+    {
+        this.test('maxListeners debug log only once', () => {
+            let emitter = new EventsManager();
+            emitter.maxListeners = 5;
+            let loggedMessages = [];
+            let originalDebug = console.log;
+            
+            console.log = (...args) => loggedMessages.push(args.join(' '));
+            process.env.RELDENS_LOG_LEVEL = 8;
+            
+            for(let i = 0; i < 10; i++){
+                emitter.on('test-max-'+i, () => {});
+            }
+            
+            console.log = originalDebug;
+            delete process.env.RELDENS_LOG_LEVEL;
+            
+            let debugLogs = loggedMessages.filter(log => log.includes('High listener count detected'));
+            this.assert(1 === debugLogs.length, 'Should log high listener count only once');
+            this.assert(true === emitter.hasLoggedMaxListeners, 'Should set flag after logging');
+        });
+    }
+
+    testCheckMemoryLeaksAfterFlagSet()
+    {
+        this.test('checkMemoryLeaks returns early after flag set', () => {
+            let emitter = new EventsManager();
+            emitter.hasLoggedMaxListeners = true;
+            
+            for(let i = 0; i < 20; i++){
+                emitter.on('test-flag-'+i, () => {});
+            }
+            
+            let result = emitter.checkMemoryLeaks();
+            this.assert(true === result, 'Should return true immediately when flag is set');
+        });
+    }
+
+    testConstructorInitializesLogFlag()
+    {
+        this.test('Constructor initializes hasLoggedMaxListeners flag', () => {
+            let emitter = new EventsManager();
+            this.assert(false === emitter.hasLoggedMaxListeners, 'Should initialize flag as false');
+        });
+    }
+
     testRemoveListenerUsesShortcuts()
     {
         this.test('removeListener uses shortcuts for function check', () => {
@@ -233,18 +290,269 @@ class TestEventsManager
         });
     }
 
+    testSanitizeEventArgsWithValidArray()
+    {
+        this.test('sanitizeEventArgs with valid array', () => {
+            let emitter = new EventsManager();
+            let args = ['test', 123, {safe: 'data'}];
+            let result = emitter.sanitizeEventArgs(args);
+            this.assert(Array.isArray(result), 'Should return array');
+            this.assert(3 === result.length, 'Should preserve array length');
+        });
+    }
+
+    testSanitizeEventArgsWithNonArray()
+    {
+        this.test('sanitizeEventArgs with non-array returns empty array', () => {
+            let emitter = new EventsManager();
+            let result1 = emitter.sanitizeEventArgs(null);
+            let result2 = emitter.sanitizeEventArgs('string');
+            let result3 = emitter.sanitizeEventArgs(123);
+            this.assert(Array.isArray(result1) && 0 === result1.length, 'Should return empty array for null');
+            this.assert(Array.isArray(result2) && 0 === result2.length, 'Should return empty array for string');
+            this.assert(Array.isArray(result3) && 0 === result3.length, 'Should return empty array for number');
+        });
+    }
+
+    testSanitizeEventArgsExceedsMaxArgs()
+    {
+        this.test('sanitizeEventArgs when exceeding maxEventArgs', () => {
+            let emitter = new EventsManager();
+            emitter.maxEventArgs = 3;
+            let args = [1, 2, 3, 4, 5];
+            let result = emitter.sanitizeEventArgs(args);
+            this.assert(Array.isArray(result) && 0 === result.length, 'Should return empty array when exceeding maxEventArgs');
+        });
+    }
+
+    testFilterSensitiveDataWithNonObject()
+    {
+        this.test('filterSensitiveData with non-object returns input', () => {
+            let emitter = new EventsManager();
+            let result1 = emitter.filterSensitiveData('string');
+            let result2 = emitter.filterSensitiveData(123);
+            let result3 = emitter.filterSensitiveData(null);
+            this.assert('string' === result1, 'Should return string unchanged');
+            this.assert(123 === result2, 'Should return number unchanged');
+            this.assert(null === result3, 'Should return null unchanged');
+        });
+    }
+
+    testFilterSensitiveDataWithSensitiveFields()
+    {
+        this.test('filterSensitiveData filters sensitive fields', () => {
+            let emitter = new EventsManager();
+            let obj = {
+                username: 'test',
+                password: 'secret123',
+                authToken: 'token123',
+                apiKey: 'key123',
+                safe: 'data'
+            };
+            let result = emitter.filterSensitiveData(obj);
+            this.assert('test' === result.username, 'Should keep safe fields');
+            this.assert('[FILTERED]' === result.password, 'Should filter password');
+            this.assert('[FILTERED]' === result.authToken, 'Should filter token');
+            this.assert('[FILTERED]' === result.apiKey, 'Should filter key');
+            this.assert('data' === result.safe, 'Should keep safe data');
+        });
+    }
+
+    testFilterSensitiveDataWithDangerousKeys()
+    {
+        this.test('filterSensitiveData removes dangerous keys', () => {
+            let emitter = new EventsManager();
+            let obj = {
+                safe: 'data',
+                __proto__: 'dangerous',
+                constructor: 'dangerous',
+                prototype: 'dangerous'
+            };
+            let result = emitter.filterSensitiveData(obj);
+            this.assert('data' === result.safe, 'Should keep safe data');
+            this.assert(!result.hasOwnProperty('__proto__'), 'Should remove __proto__');
+            this.assert(!result.hasOwnProperty('constructor'), 'Should remove constructor');
+            this.assert(!result.hasOwnProperty('prototype'), 'Should remove prototype');
+        });
+    }
+
+    testFilterSensitiveDataWithNestedObjects()
+    {
+        this.test('filterSensitiveData handles nested objects', () => {
+            let emitter = new EventsManager();
+            let obj = {
+                user: {
+                    name: 'test',
+                    password: 'secret'
+                },
+                config: {
+                    apiKey: 'key123',
+                    safe: 'value'
+                }
+            };
+            let result = emitter.filterSensitiveData(obj);
+            this.assert('test' === result.user.name, 'Should keep nested safe fields');
+            this.assert('[FILTERED]' === result.user.password, 'Should filter nested password');
+            this.assert('[FILTERED]' === result.config.apiKey, 'Should filter nested key');
+            this.assert('value' === result.config.safe, 'Should keep nested safe value');
+        });
+    }
+
+    testValidateEventKeyWithLongKey()
+    {
+        this.test('validateEventKey rejects long keys', () => {
+            let emitter = new EventsManager();
+            emitter.maxEventKeyLength = 10;
+            let longKey = 'a'.repeat(20);
+            let result = emitter.validateEventKey(longKey);
+            this.assert(false === result, 'Should reject keys exceeding maxEventKeyLength');
+        });
+    }
+
+    testValidateEventKeyCachesResults()
+    {
+        this.test('validateEventKey caches validation results', () => {
+            let emitter = new EventsManager();
+            let key = 'cache-test-key';
+            emitter.validateEventKey(key);
+            this.assert(emitter._validationCache.has(key), 'Should cache validation result');
+            let cachedResult = emitter._validationCache.get(key);
+            let secondResult = emitter.validateEventKey(key);
+            this.assert(cachedResult === secondResult, 'Should return cached result on second call');
+        });
+    }
+
+    testLogDebugEventWithNullDebugPatterns()
+    {
+        this.test('logDebugEvent handles null _debugPatterns', () => {
+            let emitter = new EventsManager();
+            emitter.debug = 'test,custom';
+            emitter._debugPatterns = null;
+            
+            try{
+                emitter.logDebugEvent('test', 'Listen');
+                this.assert(emitter._debugPatterns instanceof Set, 'Should create debug patterns Set');
+            } catch(error){
+                this.assert(false, 'Should not throw error when _debugPatterns is null');
+            }
+        });
+    }
+
+    testLogDebugEventWithFilteredArgs()
+    {
+        this.test('logDebugEvent filters sensitive data in args', () => {
+            let emitter = new EventsManager();
+            emitter.debug = 'all';
+            let loggedMessages = [];
+            let originalLog = console.log;
+            
+            console.log = (...args) => loggedMessages.push(args.join(' '));
+            process.env.RELDENS_LOG_LEVEL = 8;
+            
+            let sensitiveArgs = [{password: 'secret', safe: 'data'}];
+            emitter.logDebugEvent('test', 'Fire', sensitiveArgs);
+            
+            console.log = originalLog;
+            delete process.env.RELDENS_LOG_LEVEL;
+            
+            let debugLog = loggedMessages.find(log => log.includes('Fire Event: test'));
+            this.assert(debugLog, 'Should log debug event');
+            this.assert(debugLog.includes('with 1 arguments'), 'Should mention filtered arguments');
+        });
+    }
+
+    testEmitWithSanitizedArgs()
+    {
+        this.test('emit uses sanitized arguments', async () => {
+            let emitter = new EventsManager();
+            let receivedArgs = null;
+            
+            emitter.on('sanitize-test', (...args) => {
+                receivedArgs = args;
+            });
+            
+            let sensitiveData = {password: 'secret', safe: 'data'};
+            await emitter.emit('sanitize-test', sensitiveData);
+            
+            this.assert(receivedArgs && 1 === receivedArgs.length, 'Should receive arguments');
+            this.assert('[FILTERED]' === receivedArgs[0].password, 'Should filter sensitive data');
+            this.assert('data' === receivedArgs[0].safe, 'Should keep safe data');
+        });
+    }
+
+    testEmitSyncWithSanitizedArgs()
+    {
+        this.test('emitSync uses sanitized arguments', () => {
+            let emitter = new EventsManager();
+            let receivedArgs = null;
+            
+            emitter.on('sanitize-sync-test', (...args) => {
+                receivedArgs = args;
+            });
+            
+            let sensitiveData = {authToken: 'token123', safe: 'data'};
+            emitter.emitSync('sanitize-sync-test', sensitiveData);
+            
+            this.assert(receivedArgs && 1 === receivedArgs.length, 'Should receive arguments');
+            this.assert('[FILTERED]' === receivedArgs[0].authToken, 'Should filter sensitive data');
+            this.assert('data' === receivedArgs[0].safe, 'Should keep safe data');
+        });
+    }
+
+    testCheckMemoryLeaksCalledOnAllListenerMethods()
+    {
+        this.test('checkMemoryLeaks called on all listener methods', () => {
+            let emitter = new EventsManager();
+            let checkCount = 0;
+            let originalCheck = emitter.checkMemoryLeaks;
+            emitter.checkMemoryLeaks = () => {
+                checkCount++;
+                return originalCheck.call(emitter);
+            };
+            
+            emitter.on('check-test', () => {});
+            emitter.prepend('check-test', () => {});
+            emitter.once('check-test', () => {});
+            emitter.prependOnce('check-test', () => {});
+            
+            this.assert(4 === checkCount, 'Should call checkMemoryLeaks on all listener methods');
+        });
+    }
+
+    testDebugPatternsEarlyReturn()
+    {
+        this.test('logDebugEvent early return when no pattern match', () => {
+            let emitter = new EventsManager();
+            emitter.debug = 'specific-pattern';
+            emitter._debugPatterns = new Set(['specific-pattern']);
+            
+            let loggedMessages = [];
+            let originalLog = console.log;
+            console.log = (...args) => loggedMessages.push(args.join(' '));
+            process.env.RELDENS_LOG_LEVEL = 8;
+            
+            emitter.logDebugEvent('non-matching-key', 'Listen');
+            
+            console.log = originalLog;
+            delete process.env.RELDENS_LOG_LEVEL;
+            
+            let debugLogs = loggedMessages.filter(log => log.includes('Listen Event:'));
+            this.assert(0 === debugLogs.length, 'Should not log when no pattern matches');
+        });
+    }
+
     testBasicOnEmitFunctionality()
     {
         this.test('Basic on/emit functionality', async () => {
             let emitter = new EventsManager();
             let called = false;
             let eventData = null;
-
+            
             emitter.on('test-event', (data) => {
                 called = true;
                 eventData = data;
             });
-
+            
             await emitter.emit('test-event', 'test-data');
             this.assert(called, 'Event listener should be called');
             this.assert('test-data' === eventData, 'Event data should be passed correctly');
@@ -256,11 +564,11 @@ class TestEventsManager
         this.test('Multiple listeners for same event', async () => {
             let emitter = new EventsManager();
             let callCount = 0;
-
+            
             emitter.on('multi-test', () => callCount++);
             emitter.on('multi-test', () => callCount++);
             emitter.on('multi-test', () => callCount++);
-
+            
             await emitter.emit('multi-test');
             this.assert(3 === callCount, 'All listeners should be called');
         });
@@ -271,9 +579,9 @@ class TestEventsManager
         this.test('Once listener removes after first call', async () => {
             let emitter = new EventsManager();
             let callCount = 0;
-
+            
             emitter.once('once-test', () => callCount++);
-
+            
             await emitter.emit('once-test');
             await emitter.emit('once-test');
             this.assert(1 === callCount, 'Once listener should only be called once');
@@ -285,10 +593,10 @@ class TestEventsManager
         this.test('Prepend listener adds to beginning', async () => {
             let emitter = new EventsManager();
             let order = [];
-
+            
             emitter.on('order-test', () => order.push('second'));
             emitter.prepend('order-test', () => order.push('first'));
-
+            
             await emitter.emit('order-test');
             this.assert('first' === order[0], 'Prepended listener should be first');
             this.assert('second' === order[1], 'Original listener should be second');
@@ -300,10 +608,10 @@ class TestEventsManager
         this.test('PrependOnce listener', async () => {
             let emitter = new EventsManager();
             let order = [];
-
+            
             emitter.on('prepend-once-test', () => order.push('second'));
             emitter.prependOnce('prepend-once-test', () => order.push('first'));
-
+            
             await emitter.emit('prepend-once-test');
             await emitter.emit('prepend-once-test');
             this.assert(3 === order.length, 'Should have 3 calls total');
@@ -319,10 +627,10 @@ class TestEventsManager
             let emitter = new EventsManager();
             let fn1 = () => {};
             let fn2 = () => {};
-
+            
             emitter.on('listeners-test', fn1);
             emitter.on('listeners-test', fn2);
-
+            
             let listeners = emitter.listeners('listeners-test');
             this.assert(Array.isArray(listeners), 'Should return array');
             this.assert(2 === listeners.length, 'Should return 2 listeners');
@@ -339,11 +647,11 @@ class TestEventsManager
             let called2 = false;
             let fn1 = () => called1 = true;
             let fn2 = () => called2 = true;
-
+            
             emitter.on('remove-test', fn1);
             emitter.on('remove-test', fn2);
             emitter.removeListener('remove-test', fn1);
-
+            
             await emitter.emit('remove-test');
             this.assert(!called1, 'Removed listener should not be called');
             this.assert(called2, 'Remaining listener should be called');
@@ -355,10 +663,10 @@ class TestEventsManager
         this.test('RemoveListener removes all if no function specified', async () => {
             let emitter = new EventsManager();
             let called = false;
-
+            
             emitter.on('remove-all-test', () => called = true);
             emitter.removeListener('remove-all-test');
-
+            
             await emitter.emit('remove-all-test');
             this.assert(!called, 'All listeners should be removed');
         });
@@ -370,11 +678,11 @@ class TestEventsManager
             let emitter = new EventsManager();
             let called1 = false;
             let called2 = false;
-
+            
             emitter.on('clear-test1', () => called1 = true);
             emitter.on('clear-test2', () => called2 = true);
             emitter.removeAllListeners();
-
+            
             await emitter.emit('clear-test1');
             await emitter.emit('clear-test2');
             this.assert(!called1, 'First event should not fire');
@@ -388,10 +696,10 @@ class TestEventsManager
             let emitter = new EventsManager();
             let called = false;
             let fn = () => called = true;
-
+            
             emitter.on('off-test', fn);
             emitter.off('off-test', fn);
-
+            
             await emitter.emit('off-test');
             this.assert(!called, 'Off should remove listener');
         });
@@ -402,9 +710,9 @@ class TestEventsManager
         this.test('AddListener alias works like on', async () => {
             let emitter = new EventsManager();
             let called = false;
-
+            
             emitter.addListener('add-test', () => called = true);
-
+            
             await emitter.emit('add-test');
             this.assert(called, 'AddListener should work like on');
         });
@@ -415,10 +723,10 @@ class TestEventsManager
         this.test('PrependListener alias works like prepend', async () => {
             let emitter = new EventsManager();
             let order = [];
-
+            
             emitter.on('prepend-alias-test', () => order.push('second'));
             emitter.prependListener('prepend-alias-test', () => order.push('first'));
-
+            
             await emitter.emit('prepend-alias-test');
             this.assert('first' === order[0], 'PrependListener should work like prepend');
         });
@@ -429,9 +737,9 @@ class TestEventsManager
         this.test('PrependOnceListener alias works like prependOnce', async () => {
             let emitter = new EventsManager();
             let callCount = 0;
-
+            
             emitter.prependOnceListener('prepend-once-alias', () => callCount++);
-
+            
             await emitter.emit('prepend-once-alias');
             await emitter.emit('prepend-once-alias');
             this.assert(1 === callCount, 'PrependOnceListener should work like prependOnce');
@@ -443,9 +751,9 @@ class TestEventsManager
         this.test('onWithKey basic functionality', async () => {
             let emitter = new EventsManager();
             let called = false;
-
+            
             emitter.onWithKey('key-test', () => called = true, 'test-key');
-
+            
             await emitter.emit('key-test');
             this.assert(called, 'onWithKey should work like on');
             this.assert(emitter.eventsByRemoveKeys['test-key'], 'Should store event by key');
@@ -457,10 +765,10 @@ class TestEventsManager
         this.test('offWithKey removes by key', async () => {
             let emitter = new EventsManager();
             let called = false;
-
+            
             emitter.onWithKey('key-remove-test', () => called = true, 'remove-key');
             emitter.offWithKey('remove-key');
-
+            
             await emitter.emit('key-remove-test');
             this.assert(!called, 'offWithKey should remove listener');
             this.assert(!emitter.eventsByRemoveKeys['remove-key'], 'Should remove key from storage');
@@ -472,9 +780,9 @@ class TestEventsManager
         this.test('onWithKey with master key', async () => {
             let emitter = new EventsManager();
             let called = false;
-
+            
             emitter.onWithKey('master-test', () => called = true, 'sub-key', 'master-key');
-
+            
             await emitter.emit('master-test');
             this.assert(called, 'onWithKey with master key should work');
             this.assert(emitter.eventsByRemoveKeys['master-key'], 'Should store master key');
@@ -487,10 +795,10 @@ class TestEventsManager
         this.test('offWithKey with master key', async () => {
             let emitter = new EventsManager();
             let called = false;
-
+            
             emitter.onWithKey('master-remove-test', () => called = true, 'sub-key', 'master-key');
             emitter.offWithKey('sub-key', 'master-key');
-
+            
             await emitter.emit('master-remove-test');
             this.assert(!called, 'offWithKey with master key should remove listener');
         });
@@ -502,11 +810,11 @@ class TestEventsManager
             let emitter = new EventsManager();
             let called1 = false;
             let called2 = false;
-
+            
             emitter.onWithKey('master-bulk1', () => called1 = true, 'sub1', 'bulk-master');
             emitter.onWithKey('master-bulk2', () => called2 = true, 'sub2', 'bulk-master');
             emitter.offByMasterKey('bulk-master');
-
+            
             await emitter.emit('master-bulk1');
             await emitter.emit('master-bulk2');
             this.assert(!called1, 'First event should be removed');
@@ -520,10 +828,10 @@ class TestEventsManager
         this.test('EmitSync works without await', () => {
             let emitter = new EventsManager();
             let called = false;
-
+            
             emitter.on('sync-test', () => called = true);
             emitter.emitSync('sync-test');
-
+            
             this.assert(called, 'EmitSync should call listeners immediately');
         });
     }
@@ -534,17 +842,17 @@ class TestEventsManager
             let emitter = new EventsManager();
             let loggedEvents = [];
             let originalLog = console.log;
-
+            
             console.log = (...args) => loggedEvents.push(args.join(' '));
             process.env.RELDENS_LOG_LEVEL = 8;
             emitter.debug = 'all';
-
+            
             emitter.on('debug-test', () => {});
             await emitter.emit('debug-test');
-
+            
             console.log = originalLog;
             delete process.env.RELDENS_LOG_LEVEL;
-
+            
             let hasListenLog = loggedEvents.some(log => log.includes('Listen Event:'));
             let hasFireLog = loggedEvents.some(log => log.includes('Fire Event:'));
             this.assert(hasListenLog, 'Should log listen events');
@@ -557,12 +865,12 @@ class TestEventsManager
         this.test('Async listeners with promises', async () => {
             let emitter = new EventsManager();
             let asyncResult = '';
-
+            
             emitter.on('async-test', async () => {
                 await new Promise(resolve => setTimeout(resolve, 10));
                 asyncResult = 'async-complete';
             });
-
+            
             await emitter.emit('async-test');
             this.assert('async-complete' === asyncResult, 'Should await async listeners');
         });
@@ -573,7 +881,7 @@ class TestEventsManager
         this.test('Invalid event key throws error', () => {
             let emitter = new EventsManager();
             let errorThrown = false;
-
+            
             try{
                 emitter.on(123, () => {});
             } catch(error){
@@ -589,7 +897,7 @@ class TestEventsManager
         this.test('Invalid function throws error', () => {
             let emitter = new EventsManager();
             let errorThrown = false;
-
+            
             try{
                 emitter.on('test', 'not-a-function');
             } catch(error){
@@ -614,7 +922,7 @@ class TestEventsManager
         this.test('Missing parameters handled gracefully', () => {
             let emitter = new EventsManager();
             let errorThrown = false;
-
+            
             try{
                 emitter.on();
             } catch(error){
@@ -657,10 +965,10 @@ class TestEventsManager
         this.test('Empty event name handled', () => {
             let emitter = new EventsManager();
             let called = false;
-
+            
             emitter.on('', () => called = true);
             emitter.emit('');
-
+            
             this.assert(called, 'Should handle empty string event names');
         });
     }
@@ -671,10 +979,10 @@ class TestEventsManager
             let emitter = new EventsManager();
             let called = false;
             let sym = Symbol('test-symbol');
-
+            
             emitter.on(sym, () => called = true);
             emitter.emit(sym);
-
+            
             this.assert(called, 'Should handle symbol event keys');
         });
     }
@@ -707,7 +1015,7 @@ class TestEventsManager
         console.log('Passed:', this.passedCount);
         console.log('Failed:', this.testCount - this.passedCount);
         console.log('Success rate:', Math.round((this.passedCount / this.testCount) * 100)+'%');
-
+        
         if(this.testCount - this.passedCount > 0){
             console.log('\nFailed tests:');
             for(let result of this.testResults){
