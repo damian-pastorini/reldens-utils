@@ -34,41 +34,18 @@ class TestEventsManager
     runAllTests()
     {
         console.log('Running tests for EventsManager...\n');
-
-        this.testConstructorCreatesInstance();
-        this.testBasicOnEmitFunctionality();
-        this.testMultipleListenersForSameEvent();
-        this.testOnceListenerRemovesAfterFirstCall();
-        this.testPrependListenerAddsToBeginning();
-        this.testPrependOnceListener();
-        this.testListenersMethodReturnsArrayOfFunctions();
-        this.testRemoveListenerRemovesSpecificFunction();
-        this.testRemoveListenerRemovesAllIfNoFunctionSpecified();
-        this.testRemoveAllListenersClearsAllEvents();
-        this.testOffAliasWorksLikeRemoveListener();
-        this.testAddListenerAliasWorksLikeOn();
-        this.testPrependListenerAliasWorksLikePrepend();
-        this.testPrependOnceListenerAliasWorksLikePrependOnce();
-        this.testOnWithKeyBasicFunctionality();
-        this.testOffWithKeyRemovesByKey();
-        this.testOnWithKeyWithMasterKey();
-        this.testOffWithKeyWithMasterKey();
-        this.testOffByMasterKeyRemovesAllEventsUnderMasterKey();
-        this.testEmitSyncWorksWithoutAwait();
-        this.testDebugFunctionalityLogsEvents();
-        this.testAsyncListenersWithPromises();
-        this.testInvalidEventKeyThrowsError();
-        this.testInvalidFunctionThrowsError();
-        this.testDangerousKeysRejectedByOnWithKey();
-        this.testMissingParametersHandledGracefully();
-        this.testOffWithKeyWithNonExistentKeyReturnsFalse();
-        this.testOffByMasterKeyWithNonExistentMasterKeyReturnsFalse();
-        this.testDuplicateKeyRegistrationReturnsFalse();
-        this.testEmptyEventNameHandled();
-        this.testSymbolEventKeysWork();
-        this.testEmitWithNoListenersReturnsFalse();
-        this.testEmitWithListenersReturnsTrue();
-
+        
+        let methodNames = Object.getOwnPropertyNames(Object.getPrototypeOf(this));
+        let testMethods = methodNames.filter(name => 
+            name.startsWith('test') && 
+            'function' === typeof this[name] &&
+            name !== 'test'
+        );
+        
+        for(let methodName of testMethods){
+            this[methodName]();
+        }
+        
         this.printSummary();
     }
 
@@ -80,6 +57,179 @@ class TestEventsManager
             this.assert('object' === typeof emitter._events, 'Should have _events object');
             this.assert('object' === typeof emitter.eventsByRemoveKeys, 'Should have eventsByRemoveKeys object');
             this.assert(false === emitter.debug, 'Should have debug false by default');
+        });
+    }
+
+    testStaticTypeKeyName()
+    {
+        this.test('Static TYPE_KEY_NAME exists', () => {
+            this.assert('undefined' !== typeof EventsManager.TYPE_KEY_NAME, 'Should have static TYPE_KEY_NAME');
+            this.assert('string' === typeof EventsManager.TYPE_KEY_NAME || 'symbol' === typeof EventsManager.TYPE_KEY_NAME, 'TYPE_KEY_NAME should be string or symbol');
+        });
+    }
+
+    testConstructorInitializesPerformanceFeatures()
+    {
+        this.test('Constructor initializes performance features', () => {
+            let emitter = new EventsManager();
+            this.assert('object' === typeof emitter._listenersCache, 'Should have _listenersCache object');
+            this.assert(emitter._validationCache instanceof Map, 'Should have _validationCache Map');
+            this.assert(null === emitter._debugPatterns, 'Should have _debugPatterns initially null');
+        });
+    }
+
+    testListenersCachePerformance()
+    {
+        this.test('Listeners cache improves performance', () => {
+            let emitter = new EventsManager();
+            let fn = () => {};
+            
+            emitter.on('cache-test', fn);
+            
+            let firstCall = emitter.listeners('cache-test');
+            let secondCall = emitter.listeners('cache-test');
+            
+            this.assert(firstCall === secondCall, 'Should return same cached array reference');
+            this.assert(emitter._listenersCache['cache-test'], 'Should store cache entry');
+        });
+    }
+
+    testValidationCachePerformance()
+    {
+        this.test('Validation cache improves performance', () => {
+            let emitter = new EventsManager();
+            
+            let result1 = emitter.validateEventKey('test-key');
+            let result2 = emitter.validateEventKey('test-key');
+            
+            this.assert(result1 === result2, 'Should return same validation result');
+            this.assert(emitter._validationCache.has('test-key'), 'Should cache validation result');
+            this.assert(emitter._validationCache.get('test-key') === result1, 'Should return cached value');
+        });
+    }
+
+    testDebugPatternsOptimization()
+    {
+        this.test('Debug patterns optimization works', () => {
+            let emitter = new EventsManager();
+            emitter.debug = 'all,test,custom';
+            
+            emitter.logDebugEvent('test', 'Listen');
+            
+            this.assert(emitter._debugPatterns instanceof Set, 'Should create debug patterns Set');
+            this.assert(emitter._debugPatterns.has('all'), 'Should contain all pattern');
+            this.assert(emitter._debugPatterns.has('test'), 'Should contain test pattern');
+            this.assert(emitter._debugPatterns.has('custom'), 'Should contain custom pattern');
+        });
+    }
+
+    testCacheInvalidationOnRemoveListener()
+    {
+        this.test('Cache invalidation on removeListener', () => {
+            let emitter = new EventsManager();
+            let fn = () => {};
+            
+            emitter.on('cache-invalidate-test', fn);
+            emitter.listeners('cache-invalidate-test');
+            this.assert(emitter._listenersCache['cache-invalidate-test'], 'Should have cache entry');
+            
+            emitter.removeListener('cache-invalidate-test', fn);
+            this.assert(!emitter._listenersCache['cache-invalidate-test'], 'Should clear cache on remove');
+        });
+    }
+
+    testCacheInvalidationOnRemoveAllListeners()
+    {
+        this.test('Cache invalidation on removeAllListeners', () => {
+            let emitter = new EventsManager();
+            
+            emitter.on('clear-cache-test1', () => {});
+            emitter.on('clear-cache-test2', () => {});
+            emitter.listeners('clear-cache-test1');
+            emitter.listeners('clear-cache-test2');
+            
+            this.assert(emitter._listenersCache['clear-cache-test1'], 'Should have cache entry 1');
+            this.assert(emitter._listenersCache['clear-cache-test2'], 'Should have cache entry 2');
+            
+            emitter.removeAllListeners();
+            this.assert(0 === Object.keys(emitter._listenersCache).length, 'Should clear all cache entries');
+        });
+    }
+
+    testCacheInvalidationOnOffWithKey()
+    {
+        this.test('Cache invalidation on offWithKey', () => {
+            let emitter = new EventsManager();
+            
+            emitter.onWithKey('off-cache-test', () => {}, 'test-key');
+            emitter.listeners('off-cache-test');
+            this.assert(emitter._listenersCache['off-cache-test'], 'Should have cache entry');
+            
+            emitter.offWithKey('test-key');
+            this.assert(!emitter._listenersCache['off-cache-test'], 'Should clear cache on offWithKey');
+        });
+    }
+
+    testCacheInvalidationOnOffByMasterKey()
+    {
+        this.test('Cache invalidation on offByMasterKey', () => {
+            let emitter = new EventsManager();
+            
+            emitter.onWithKey('master-cache-test1', () => {}, 'sub1', 'master');
+            emitter.onWithKey('master-cache-test2', () => {}, 'sub2', 'master');
+            emitter.listeners('master-cache-test1');
+            emitter.listeners('master-cache-test2');
+            
+            this.assert(emitter._listenersCache['master-cache-test1'], 'Should have cache entry 1');
+            this.assert(emitter._listenersCache['master-cache-test2'], 'Should have cache entry 2');
+            
+            emitter.offByMasterKey('master');
+            this.assert(!emitter._listenersCache['master-cache-test1'], 'Should clear cache 1');
+            this.assert(!emitter._listenersCache['master-cache-test2'], 'Should clear cache 2');
+        });
+    }
+
+    testAssertTypeUsesShortcuts()
+    {
+        this.test('assertType uses shortcuts methods', () => {
+            let emitter = new EventsManager();
+            
+            try{
+                emitter.assertType(123);
+                this.assert(false, 'Should throw error for number');
+            } catch(error){
+                this.assert(error instanceof TypeError, 'Should throw TypeError');
+                this.assert(error.message.includes('type is not type of string or symbol'), 'Should have correct error message');
+            }
+            
+            try{
+                emitter.assertType('valid-string');
+                this.assert(true, 'Should accept string');
+            } catch(error){
+                this.assert(false, 'Should not throw for valid string');
+            }
+            
+            try{
+                let sym = Symbol('test');
+                emitter.assertType(sym);
+                this.assert(true, 'Should accept symbol');
+            } catch(error){
+                this.assert(false, 'Should not throw for valid symbol');
+            }
+        });
+    }
+
+    testRemoveListenerUsesShortcuts()
+    {
+        this.test('removeListener uses shortcuts for function check', () => {
+            let emitter = new EventsManager();
+            let fn = () => {};
+            
+            emitter.on('shortcuts-test', fn);
+            emitter.on('shortcuts-test', () => {});
+            
+            let result = emitter.removeListener('shortcuts-test', fn);
+            this.assert(true === result, 'Should use sc.isFunction internally and work correctly');
         });
     }
 
