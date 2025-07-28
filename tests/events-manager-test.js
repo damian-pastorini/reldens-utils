@@ -34,18 +34,18 @@ class TestEventsManager
     runAllTests()
     {
         console.log('Running tests for EventsManager...\n');
-        
+
         let methodNames = Object.getOwnPropertyNames(Object.getPrototypeOf(this));
-        let testMethods = methodNames.filter(name => 
-            name.startsWith('test') && 
+        let testMethods = methodNames.filter(name =>
+            name.startsWith('test') &&
             'function' === typeof this[name] &&
             name !== 'test'
         );
-        
+
         for(let methodName of testMethods){
             this[methodName]();
         }
-        
+
         this.printSummary();
     }
 
@@ -62,9 +62,58 @@ class TestEventsManager
 
     testStaticTypeKeyName()
     {
-        this.test('Static TYPE_KEY_NAME exists', () => {
-            this.assert('undefined' !== typeof EventsManager.TYPE_KEY_NAME, 'Should have static TYPE_KEY_NAME');
-            this.assert('string' === typeof EventsManager.TYPE_KEY_NAME || 'symbol' === typeof EventsManager.TYPE_KEY_NAME, 'TYPE_KEY_NAME should be string or symbol');
+        this.test('Constructor initializes typeKeyName property', () => {
+            let emitter = new EventsManager();
+            this.assert('undefined' !== typeof emitter.typeKeyName, 'Should have typeKeyName property');
+            this.assert('string' === typeof emitter.typeKeyName || 'symbol' === typeof emitter.typeKeyName, 'typeKeyName should be string or symbol');
+            this.assert('undefined' !== typeof emitter.symbolString, 'Should have symbolString property');
+            this.assert('--[[await-event-emitter]]--' === emitter.symbolString, 'Should have correct symbolString value');
+        });
+    }
+
+    testConstructorUsesShortcutsForSymbolCheck()
+    {
+        this.test('Constructor uses shortcuts for Symbol function check', () => {
+            let emitter = new EventsManager();
+            if('function' === typeof Symbol){
+                this.assert('symbol' === typeof emitter.typeKeyName, 'Should create symbol when Symbol is available');
+            }
+            if('function' !== typeof Symbol){
+                this.assert('string' === typeof emitter.typeKeyName, 'Should use string when Symbol not available');
+            }
+            this.assert(emitter.symbolString === emitter.typeKeyName || Symbol.for(emitter.symbolString) === emitter.typeKeyName, 'typeKeyName should match expected value');
+        });
+    }
+
+    testTypeKeyNameUsedInListenerObjects()
+    {
+        this.test('typeKeyName property used correctly in listener objects', () => {
+            let emitter = new EventsManager();
+            let fn = () => {};
+
+            emitter.on('type-key-test', fn);
+
+            let eventArray = emitter._events['type-key-test'];
+            this.assert(eventArray && eventArray.length > 0, 'Should have event listeners');
+
+            let listenerObj = eventArray[0];
+            this.assert(listenerObj.hasOwnProperty(emitter.typeKeyName), 'Listener should use typeKeyName property');
+            this.assert('always' === listenerObj[emitter.typeKeyName], 'Should have correct listener type');
+            this.assert(fn === listenerObj.fn, 'Should store correct function');
+        });
+    }
+
+    testOnceListenerUsesTypeKeyName()
+    {
+        this.test('once listener uses typeKeyName correctly', () => {
+            let emitter = new EventsManager();
+            let fn = () => {};
+
+            emitter.once('once-type-key-test', fn);
+
+            let eventArray = emitter._events['once-type-key-test'];
+            let listenerObj = eventArray[0];
+            this.assert('once' === listenerObj[emitter.typeKeyName], 'Once listener should have correct type');
         });
     }
 
@@ -75,6 +124,9 @@ class TestEventsManager
             this.assert('object' === typeof emitter._listenersCache, 'Should have _listenersCache object');
             this.assert(emitter._validationCache instanceof Map, 'Should have _validationCache Map');
             this.assert(null === emitter._debugPatterns, 'Should have _debugPatterns initially null');
+            this.assert('string' === typeof emitter.symbolString, 'Should have symbolString property');
+            this.assert('--[[await-event-emitter]]--' === emitter.symbolString, 'Should have correct symbolString');
+            this.assert('undefined' !== typeof emitter.typeKeyName, 'Should have typeKeyName property');
         });
     }
 
@@ -83,12 +135,12 @@ class TestEventsManager
         this.test('Listeners cache improves performance', () => {
             let emitter = new EventsManager();
             let fn = () => {};
-            
+
             emitter.on('cache-test', fn);
-            
+
             let firstCall = emitter.listeners('cache-test');
             let secondCall = emitter.listeners('cache-test');
-            
+
             this.assert(firstCall === secondCall, 'Should return same cached array reference');
             this.assert(emitter._listenersCache['cache-test'], 'Should store cache entry');
         });
@@ -98,10 +150,10 @@ class TestEventsManager
     {
         this.test('Validation cache improves performance', () => {
             let emitter = new EventsManager();
-            
+
             let result1 = emitter.validateEventKey('test-key');
             let result2 = emitter.validateEventKey('test-key');
-            
+
             this.assert(result1 === result2, 'Should return same validation result');
             this.assert(emitter._validationCache.has('test-key'), 'Should cache validation result');
             this.assert(emitter._validationCache.get('test-key') === result1, 'Should return cached value');
@@ -113,9 +165,9 @@ class TestEventsManager
         this.test('Debug patterns optimization works', () => {
             let emitter = new EventsManager();
             emitter.debug = 'all,test,custom';
-            
+
             emitter.logDebugEvent('test', 'Listen');
-            
+
             this.assert(emitter._debugPatterns instanceof Set, 'Should create debug patterns Set');
             this.assert(emitter._debugPatterns.has('all'), 'Should contain all pattern');
             this.assert(emitter._debugPatterns.has('test'), 'Should contain test pattern');
@@ -128,11 +180,11 @@ class TestEventsManager
         this.test('Cache invalidation on removeListener', () => {
             let emitter = new EventsManager();
             let fn = () => {};
-            
+
             emitter.on('cache-invalidate-test', fn);
             emitter.listeners('cache-invalidate-test');
             this.assert(emitter._listenersCache['cache-invalidate-test'], 'Should have cache entry');
-            
+
             emitter.removeListener('cache-invalidate-test', fn);
             this.assert(!emitter._listenersCache['cache-invalidate-test'], 'Should clear cache on remove');
         });
@@ -142,15 +194,15 @@ class TestEventsManager
     {
         this.test('Cache invalidation on removeAllListeners', () => {
             let emitter = new EventsManager();
-            
+
             emitter.on('clear-cache-test1', () => {});
             emitter.on('clear-cache-test2', () => {});
             emitter.listeners('clear-cache-test1');
             emitter.listeners('clear-cache-test2');
-            
+
             this.assert(emitter._listenersCache['clear-cache-test1'], 'Should have cache entry 1');
             this.assert(emitter._listenersCache['clear-cache-test2'], 'Should have cache entry 2');
-            
+
             emitter.removeAllListeners();
             this.assert(0 === Object.keys(emitter._listenersCache).length, 'Should clear all cache entries');
         });
@@ -160,11 +212,11 @@ class TestEventsManager
     {
         this.test('Cache invalidation on offWithKey', () => {
             let emitter = new EventsManager();
-            
+
             emitter.onWithKey('off-cache-test', () => {}, 'test-key');
             emitter.listeners('off-cache-test');
             this.assert(emitter._listenersCache['off-cache-test'], 'Should have cache entry');
-            
+
             emitter.offWithKey('test-key');
             this.assert(!emitter._listenersCache['off-cache-test'], 'Should clear cache on offWithKey');
         });
@@ -174,15 +226,15 @@ class TestEventsManager
     {
         this.test('Cache invalidation on offByMasterKey', () => {
             let emitter = new EventsManager();
-            
+
             emitter.onWithKey('master-cache-test1', () => {}, 'sub1', 'master');
             emitter.onWithKey('master-cache-test2', () => {}, 'sub2', 'master');
             emitter.listeners('master-cache-test1');
             emitter.listeners('master-cache-test2');
-            
+
             this.assert(emitter._listenersCache['master-cache-test1'], 'Should have cache entry 1');
             this.assert(emitter._listenersCache['master-cache-test2'], 'Should have cache entry 2');
-            
+
             emitter.offByMasterKey('master');
             this.assert(!emitter._listenersCache['master-cache-test1'], 'Should clear cache 1');
             this.assert(!emitter._listenersCache['master-cache-test2'], 'Should clear cache 2');
@@ -193,7 +245,7 @@ class TestEventsManager
     {
         this.test('assertType uses shortcuts methods', () => {
             let emitter = new EventsManager();
-            
+
             try{
                 emitter.assertType(123);
                 this.assert(false, 'Should throw error for number');
@@ -201,14 +253,14 @@ class TestEventsManager
                 this.assert(error instanceof TypeError, 'Should throw TypeError');
                 this.assert(error.message.includes('type is not type of string or symbol'), 'Should have correct error message');
             }
-            
+
             try{
                 emitter.assertType('valid-string');
                 this.assert(true, 'Should accept string');
             } catch(error){
                 this.assert(false, 'Should not throw for valid string');
             }
-            
+
             try{
                 let sym = Symbol('test');
                 emitter.assertType(sym);
@@ -236,17 +288,17 @@ class TestEventsManager
             emitter.maxListeners = 5;
             let loggedMessages = [];
             let originalDebug = console.log;
-            
+
             console.log = (...args) => loggedMessages.push(args.join(' '));
             process.env.RELDENS_LOG_LEVEL = 8;
-            
+
             for(let i = 0; i < 10; i++){
                 emitter.on('test-max-'+i, () => {});
             }
-            
+
             console.log = originalDebug;
             delete process.env.RELDENS_LOG_LEVEL;
-            
+
             let debugLogs = loggedMessages.filter(log => log.includes('High listener count detected'));
             this.assert(1 === debugLogs.length, 'Should log high listener count only once');
             this.assert(true === emitter.hasLoggedMaxListeners, 'Should set flag after logging');
@@ -258,11 +310,11 @@ class TestEventsManager
         this.test('checkMemoryLeaks returns early after flag set', () => {
             let emitter = new EventsManager();
             emitter.hasLoggedMaxListeners = true;
-            
+
             for(let i = 0; i < 20; i++){
                 emitter.on('test-flag-'+i, () => {});
             }
-            
+
             let result = emitter.checkMemoryLeaks();
             this.assert(true === result, 'Should return true immediately when flag is set');
         });
@@ -281,10 +333,10 @@ class TestEventsManager
         this.test('removeListener uses shortcuts for function check', () => {
             let emitter = new EventsManager();
             let fn = () => {};
-            
+
             emitter.on('shortcuts-test', fn);
             emitter.on('shortcuts-test', () => {});
-            
+
             let result = emitter.removeListener('shortcuts-test', fn);
             this.assert(true === result, 'Should use sc.isFunction internally and work correctly');
         });
@@ -428,7 +480,7 @@ class TestEventsManager
             let emitter = new EventsManager();
             emitter.debug = 'test,custom';
             emitter._debugPatterns = null;
-            
+
             try{
                 emitter.logDebugEvent('test', 'Listen');
                 this.assert(emitter._debugPatterns instanceof Set, 'Should create debug patterns Set');
@@ -445,16 +497,16 @@ class TestEventsManager
             emitter.debug = 'all';
             let loggedMessages = [];
             let originalLog = console.log;
-            
+
             console.log = (...args) => loggedMessages.push(args.join(' '));
             process.env.RELDENS_LOG_LEVEL = 8;
-            
+
             let sensitiveArgs = [{password: 'secret', safe: 'data'}];
             emitter.logDebugEvent('test', 'Fire', sensitiveArgs);
-            
+
             console.log = originalLog;
             delete process.env.RELDENS_LOG_LEVEL;
-            
+
             let debugLog = loggedMessages.find(log => log.includes('Fire Event: test'));
             this.assert(debugLog, 'Should log debug event');
             this.assert(debugLog.includes('with 1 arguments'), 'Should mention filtered arguments');
@@ -466,14 +518,14 @@ class TestEventsManager
         this.test('emit uses sanitized arguments', async () => {
             let emitter = new EventsManager();
             let receivedArgs = null;
-            
+
             emitter.on('sanitize-test', (...args) => {
                 receivedArgs = args;
             });
-            
+
             let sensitiveData = {password: 'secret', safe: 'data'};
             await emitter.emit('sanitize-test', sensitiveData);
-            
+
             this.assert(receivedArgs && 1 === receivedArgs.length, 'Should receive arguments');
             this.assert('[FILTERED]' === receivedArgs[0].password, 'Should filter sensitive data');
             this.assert('data' === receivedArgs[0].safe, 'Should keep safe data');
@@ -485,14 +537,14 @@ class TestEventsManager
         this.test('emitSync uses sanitized arguments', () => {
             let emitter = new EventsManager();
             let receivedArgs = null;
-            
+
             emitter.on('sanitize-sync-test', (...args) => {
                 receivedArgs = args;
             });
-            
+
             let sensitiveData = {authToken: 'token123', safe: 'data'};
             emitter.emitSync('sanitize-sync-test', sensitiveData);
-            
+
             this.assert(receivedArgs && 1 === receivedArgs.length, 'Should receive arguments');
             this.assert('[FILTERED]' === receivedArgs[0].authToken, 'Should filter sensitive data');
             this.assert('data' === receivedArgs[0].safe, 'Should keep safe data');
@@ -509,12 +561,12 @@ class TestEventsManager
                 checkCount++;
                 return originalCheck.call(emitter);
             };
-            
+
             emitter.on('check-test', () => {});
             emitter.prepend('check-test', () => {});
             emitter.once('check-test', () => {});
             emitter.prependOnce('check-test', () => {});
-            
+
             this.assert(4 === checkCount, 'Should call checkMemoryLeaks on all listener methods');
         });
     }
@@ -525,17 +577,17 @@ class TestEventsManager
             let emitter = new EventsManager();
             emitter.debug = 'specific-pattern';
             emitter._debugPatterns = new Set(['specific-pattern']);
-            
+
             let loggedMessages = [];
             let originalLog = console.log;
             console.log = (...args) => loggedMessages.push(args.join(' '));
             process.env.RELDENS_LOG_LEVEL = 8;
-            
+
             emitter.logDebugEvent('non-matching-key', 'Listen');
-            
+
             console.log = originalLog;
             delete process.env.RELDENS_LOG_LEVEL;
-            
+
             let debugLogs = loggedMessages.filter(log => log.includes('Listen Event:'));
             this.assert(0 === debugLogs.length, 'Should not log when no pattern matches');
         });
@@ -547,12 +599,12 @@ class TestEventsManager
             let emitter = new EventsManager();
             let called = false;
             let eventData = null;
-            
+
             emitter.on('test-event', (data) => {
                 called = true;
                 eventData = data;
             });
-            
+
             await emitter.emit('test-event', 'test-data');
             this.assert(called, 'Event listener should be called');
             this.assert('test-data' === eventData, 'Event data should be passed correctly');
@@ -564,11 +616,11 @@ class TestEventsManager
         this.test('Multiple listeners for same event', async () => {
             let emitter = new EventsManager();
             let callCount = 0;
-            
+
             emitter.on('multi-test', () => callCount++);
             emitter.on('multi-test', () => callCount++);
             emitter.on('multi-test', () => callCount++);
-            
+
             await emitter.emit('multi-test');
             this.assert(3 === callCount, 'All listeners should be called');
         });
@@ -579,9 +631,9 @@ class TestEventsManager
         this.test('Once listener removes after first call', async () => {
             let emitter = new EventsManager();
             let callCount = 0;
-            
+
             emitter.once('once-test', () => callCount++);
-            
+
             await emitter.emit('once-test');
             await emitter.emit('once-test');
             this.assert(1 === callCount, 'Once listener should only be called once');
@@ -593,10 +645,10 @@ class TestEventsManager
         this.test('Prepend listener adds to beginning', async () => {
             let emitter = new EventsManager();
             let order = [];
-            
+
             emitter.on('order-test', () => order.push('second'));
             emitter.prepend('order-test', () => order.push('first'));
-            
+
             await emitter.emit('order-test');
             this.assert('first' === order[0], 'Prepended listener should be first');
             this.assert('second' === order[1], 'Original listener should be second');
@@ -608,10 +660,10 @@ class TestEventsManager
         this.test('PrependOnce listener', async () => {
             let emitter = new EventsManager();
             let order = [];
-            
+
             emitter.on('prepend-once-test', () => order.push('second'));
             emitter.prependOnce('prepend-once-test', () => order.push('first'));
-            
+
             await emitter.emit('prepend-once-test');
             await emitter.emit('prepend-once-test');
             this.assert(3 === order.length, 'Should have 3 calls total');
@@ -627,10 +679,10 @@ class TestEventsManager
             let emitter = new EventsManager();
             let fn1 = () => {};
             let fn2 = () => {};
-            
+
             emitter.on('listeners-test', fn1);
             emitter.on('listeners-test', fn2);
-            
+
             let listeners = emitter.listeners('listeners-test');
             this.assert(Array.isArray(listeners), 'Should return array');
             this.assert(2 === listeners.length, 'Should return 2 listeners');
@@ -647,11 +699,11 @@ class TestEventsManager
             let called2 = false;
             let fn1 = () => called1 = true;
             let fn2 = () => called2 = true;
-            
+
             emitter.on('remove-test', fn1);
             emitter.on('remove-test', fn2);
             emitter.removeListener('remove-test', fn1);
-            
+
             await emitter.emit('remove-test');
             this.assert(!called1, 'Removed listener should not be called');
             this.assert(called2, 'Remaining listener should be called');
@@ -663,10 +715,10 @@ class TestEventsManager
         this.test('RemoveListener removes all if no function specified', async () => {
             let emitter = new EventsManager();
             let called = false;
-            
+
             emitter.on('remove-all-test', () => called = true);
             emitter.removeListener('remove-all-test');
-            
+
             await emitter.emit('remove-all-test');
             this.assert(!called, 'All listeners should be removed');
         });
@@ -678,11 +730,11 @@ class TestEventsManager
             let emitter = new EventsManager();
             let called1 = false;
             let called2 = false;
-            
+
             emitter.on('clear-test1', () => called1 = true);
             emitter.on('clear-test2', () => called2 = true);
             emitter.removeAllListeners();
-            
+
             await emitter.emit('clear-test1');
             await emitter.emit('clear-test2');
             this.assert(!called1, 'First event should not fire');
@@ -696,10 +748,10 @@ class TestEventsManager
             let emitter = new EventsManager();
             let called = false;
             let fn = () => called = true;
-            
+
             emitter.on('off-test', fn);
             emitter.off('off-test', fn);
-            
+
             await emitter.emit('off-test');
             this.assert(!called, 'Off should remove listener');
         });
@@ -710,9 +762,9 @@ class TestEventsManager
         this.test('AddListener alias works like on', async () => {
             let emitter = new EventsManager();
             let called = false;
-            
+
             emitter.addListener('add-test', () => called = true);
-            
+
             await emitter.emit('add-test');
             this.assert(called, 'AddListener should work like on');
         });
@@ -723,10 +775,10 @@ class TestEventsManager
         this.test('PrependListener alias works like prepend', async () => {
             let emitter = new EventsManager();
             let order = [];
-            
+
             emitter.on('prepend-alias-test', () => order.push('second'));
             emitter.prependListener('prepend-alias-test', () => order.push('first'));
-            
+
             await emitter.emit('prepend-alias-test');
             this.assert('first' === order[0], 'PrependListener should work like prepend');
         });
@@ -737,9 +789,9 @@ class TestEventsManager
         this.test('PrependOnceListener alias works like prependOnce', async () => {
             let emitter = new EventsManager();
             let callCount = 0;
-            
+
             emitter.prependOnceListener('prepend-once-alias', () => callCount++);
-            
+
             await emitter.emit('prepend-once-alias');
             await emitter.emit('prepend-once-alias');
             this.assert(1 === callCount, 'PrependOnceListener should work like prependOnce');
@@ -751,9 +803,9 @@ class TestEventsManager
         this.test('onWithKey basic functionality', async () => {
             let emitter = new EventsManager();
             let called = false;
-            
+
             emitter.onWithKey('key-test', () => called = true, 'test-key');
-            
+
             await emitter.emit('key-test');
             this.assert(called, 'onWithKey should work like on');
             this.assert(emitter.eventsByRemoveKeys['test-key'], 'Should store event by key');
@@ -765,10 +817,10 @@ class TestEventsManager
         this.test('offWithKey removes by key', async () => {
             let emitter = new EventsManager();
             let called = false;
-            
+
             emitter.onWithKey('key-remove-test', () => called = true, 'remove-key');
             emitter.offWithKey('remove-key');
-            
+
             await emitter.emit('key-remove-test');
             this.assert(!called, 'offWithKey should remove listener');
             this.assert(!emitter.eventsByRemoveKeys['remove-key'], 'Should remove key from storage');
@@ -780,9 +832,9 @@ class TestEventsManager
         this.test('onWithKey with master key', async () => {
             let emitter = new EventsManager();
             let called = false;
-            
+
             emitter.onWithKey('master-test', () => called = true, 'sub-key', 'master-key');
-            
+
             await emitter.emit('master-test');
             this.assert(called, 'onWithKey with master key should work');
             this.assert(emitter.eventsByRemoveKeys['master-key'], 'Should store master key');
@@ -795,10 +847,10 @@ class TestEventsManager
         this.test('offWithKey with master key', async () => {
             let emitter = new EventsManager();
             let called = false;
-            
+
             emitter.onWithKey('master-remove-test', () => called = true, 'sub-key', 'master-key');
             emitter.offWithKey('sub-key', 'master-key');
-            
+
             await emitter.emit('master-remove-test');
             this.assert(!called, 'offWithKey with master key should remove listener');
         });
@@ -810,11 +862,11 @@ class TestEventsManager
             let emitter = new EventsManager();
             let called1 = false;
             let called2 = false;
-            
+
             emitter.onWithKey('master-bulk1', () => called1 = true, 'sub1', 'bulk-master');
             emitter.onWithKey('master-bulk2', () => called2 = true, 'sub2', 'bulk-master');
             emitter.offByMasterKey('bulk-master');
-            
+
             await emitter.emit('master-bulk1');
             await emitter.emit('master-bulk2');
             this.assert(!called1, 'First event should be removed');
@@ -828,10 +880,10 @@ class TestEventsManager
         this.test('EmitSync works without await', () => {
             let emitter = new EventsManager();
             let called = false;
-            
+
             emitter.on('sync-test', () => called = true);
             emitter.emitSync('sync-test');
-            
+
             this.assert(called, 'EmitSync should call listeners immediately');
         });
     }
@@ -842,17 +894,17 @@ class TestEventsManager
             let emitter = new EventsManager();
             let loggedEvents = [];
             let originalLog = console.log;
-            
+
             console.log = (...args) => loggedEvents.push(args.join(' '));
             process.env.RELDENS_LOG_LEVEL = 8;
             emitter.debug = 'all';
-            
+
             emitter.on('debug-test', () => {});
             await emitter.emit('debug-test');
-            
+
             console.log = originalLog;
             delete process.env.RELDENS_LOG_LEVEL;
-            
+
             let hasListenLog = loggedEvents.some(log => log.includes('Listen Event:'));
             let hasFireLog = loggedEvents.some(log => log.includes('Fire Event:'));
             this.assert(hasListenLog, 'Should log listen events');
@@ -865,12 +917,12 @@ class TestEventsManager
         this.test('Async listeners with promises', async () => {
             let emitter = new EventsManager();
             let asyncResult = '';
-            
+
             emitter.on('async-test', async () => {
                 await new Promise(resolve => setTimeout(resolve, 10));
                 asyncResult = 'async-complete';
             });
-            
+
             await emitter.emit('async-test');
             this.assert('async-complete' === asyncResult, 'Should await async listeners');
         });
@@ -881,7 +933,7 @@ class TestEventsManager
         this.test('Invalid event key throws error', () => {
             let emitter = new EventsManager();
             let errorThrown = false;
-            
+
             try{
                 emitter.on(123, () => {});
             } catch(error){
@@ -897,7 +949,7 @@ class TestEventsManager
         this.test('Invalid function throws error', () => {
             let emitter = new EventsManager();
             let errorThrown = false;
-            
+
             try{
                 emitter.on('test', 'not-a-function');
             } catch(error){
@@ -922,7 +974,7 @@ class TestEventsManager
         this.test('Missing parameters handled gracefully', () => {
             let emitter = new EventsManager();
             let errorThrown = false;
-            
+
             try{
                 emitter.on();
             } catch(error){
@@ -965,10 +1017,10 @@ class TestEventsManager
         this.test('Empty event name handled', () => {
             let emitter = new EventsManager();
             let called = false;
-            
+
             emitter.on('', () => called = true);
             emitter.emit('');
-            
+
             this.assert(called, 'Should handle empty string event names');
         });
     }
@@ -979,10 +1031,10 @@ class TestEventsManager
             let emitter = new EventsManager();
             let called = false;
             let sym = Symbol('test-symbol');
-            
+
             emitter.on(sym, () => called = true);
             emitter.emit(sym);
-            
+
             this.assert(called, 'Should handle symbol event keys');
         });
     }
@@ -1015,7 +1067,7 @@ class TestEventsManager
         console.log('Passed:', this.passedCount);
         console.log('Failed:', this.testCount - this.passedCount);
         console.log('Success rate:', Math.round((this.passedCount / this.testCount) * 100)+'%');
-        
+
         if(this.testCount - this.passedCount > 0){
             console.log('\nFailed tests:');
             for(let result of this.testResults){
@@ -1029,5 +1081,4 @@ class TestEventsManager
 }
 
 let testRunner = new TestEventsManager();
-
 testRunner.runAllTests();
