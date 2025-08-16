@@ -1,3 +1,9 @@
+/**
+ *
+ * Reldens - TestEventsManager
+ *
+ */
+
 const EventsManager = require('../lib/events-manager');
 
 class TestEventsManager
@@ -8,6 +14,7 @@ class TestEventsManager
         this.testResults = [];
         this.testCount = 0;
         this.passedCount = 0;
+        this.currentTestMethod = '';
     }
 
     test(name, testFn)
@@ -15,11 +22,13 @@ class TestEventsManager
         this.testCount++;
         try{
             testFn();
-            console.log('✓ PASS:', name);
+            let logMessage = '✓ PASS: '+this.currentTestMethod+' - '+name;
+            console.log(logMessage);
             this.passedCount++;
             this.testResults.push({name, status: 'PASS'});
         } catch(error){
-            console.log('✗ FAIL:', name, '-', error.message);
+            let logMessage = '✗ FAIL: '+this.currentTestMethod+' - '+name+' - '+error.message;
+            console.log(logMessage);
             this.testResults.push({name, status: 'FAIL', error: error.message});
         }
     }
@@ -31,21 +40,23 @@ class TestEventsManager
         }
     }
 
-    runAllTests()
+    async runAllTests()
     {
         console.log('Running tests for EventsManager...\n');
-
         let methodNames = Object.getOwnPropertyNames(Object.getPrototypeOf(this));
         let testMethods = methodNames.filter(name =>
             name.startsWith('test') &&
             'function' === typeof this[name] &&
             name !== 'test'
         );
-
         for(let methodName of testMethods){
-            this[methodName]();
+            this.currentTestMethod = methodName;
+            try{
+                await this[methodName]();
+            } catch(error){
+                console.error('Test method failed:', methodName, error.message);
+            }
         }
-
         this.printSummary();
     }
 
@@ -289,15 +300,16 @@ class TestEventsManager
             let loggedMessages = [];
             let originalDebug = console.log;
 
-            console.log = (...args) => loggedMessages.push(args.join(' '));
-            process.env.RELDENS_LOG_LEVEL = 8;
-
-            for(let i = 0; i < 10; i++){
-                emitter.on('test-max-'+i, () => {});
+            try{
+                console.log = (...args) => loggedMessages.push(args.join(' '));
+                process.env.RELDENS_LOG_LEVEL = 8;
+                for(let i = 0; i < 10; i++){
+                    emitter.on('test-max-'+i, () => {});
+                }
+            } finally{
+                console.log = originalDebug;
+                delete process.env.RELDENS_LOG_LEVEL;
             }
-
-            console.log = originalDebug;
-            delete process.env.RELDENS_LOG_LEVEL;
 
             let debugLogs = loggedMessages.filter(log => log.includes('High listener count detected'));
             this.assert(1 === debugLogs.length, 'Should log high listener count only once');
@@ -498,14 +510,15 @@ class TestEventsManager
             let loggedMessages = [];
             let originalLog = console.log;
 
-            console.log = (...args) => loggedMessages.push(args.join(' '));
-            process.env.RELDENS_LOG_LEVEL = 8;
-
-            let sensitiveArgs = [{password: 'secret', safe: 'data'}];
-            emitter.logDebugEvent('test', 'Fire', sensitiveArgs);
-
-            console.log = originalLog;
-            delete process.env.RELDENS_LOG_LEVEL;
+            try{
+                console.log = (...args) => loggedMessages.push(args.join(' '));
+                process.env.RELDENS_LOG_LEVEL = 8;
+                let sensitiveArgs = [{password: 'secret', safe: 'data'}];
+                emitter.logDebugEvent('test', 'Fire', sensitiveArgs);
+            } finally{
+                console.log = originalLog;
+                delete process.env.RELDENS_LOG_LEVEL;
+            }
 
             let debugLog = loggedMessages.find(log => log.includes('Fire Event: test'));
             this.assert(debugLog, 'Should log debug event');
@@ -580,13 +593,14 @@ class TestEventsManager
 
             let loggedMessages = [];
             let originalLog = console.log;
-            console.log = (...args) => loggedMessages.push(args.join(' '));
-            process.env.RELDENS_LOG_LEVEL = 8;
-
-            emitter.logDebugEvent('non-matching-key', 'Listen');
-
-            console.log = originalLog;
-            delete process.env.RELDENS_LOG_LEVEL;
+            try{
+                console.log = (...args) => loggedMessages.push(args.join(' '));
+                process.env.RELDENS_LOG_LEVEL = 8;
+                emitter.logDebugEvent('non-matching-key', 'Listen');
+            } finally{
+                console.log = originalLog;
+                delete process.env.RELDENS_LOG_LEVEL;
+            }
 
             let debugLogs = loggedMessages.filter(log => log.includes('Listen Event:'));
             this.assert(0 === debugLogs.length, 'Should not log when no pattern matches');
@@ -894,17 +908,16 @@ class TestEventsManager
             let emitter = new EventsManager();
             let loggedEvents = [];
             let originalLog = console.log;
-
-            console.log = (...args) => loggedEvents.push(args.join(' '));
-            process.env.RELDENS_LOG_LEVEL = 8;
-            emitter.debug = 'all';
-
-            emitter.on('debug-test', () => {});
-            await emitter.emit('debug-test');
-
-            console.log = originalLog;
-            delete process.env.RELDENS_LOG_LEVEL;
-
+            try{
+                console.log = (...args) => loggedEvents.push(args.join(' '));
+                process.env.RELDENS_LOG_LEVEL = 8;
+                emitter.debug = 'all';
+                emitter.on('debug-test', () => {});
+                await emitter.emit('debug-test');
+            } finally{
+                console.log = originalLog;
+                delete process.env.RELDENS_LOG_LEVEL;
+            }
             let hasListenLog = loggedEvents.some(log => log.includes('Listen Event:'));
             let hasFireLog = loggedEvents.some(log => log.includes('Fire Event:'));
             this.assert(hasListenLog, 'Should log listen events');
@@ -1058,6 +1071,17 @@ class TestEventsManager
         });
     }
 
+    testFilterSensitiveDataWithCircularReferences()
+    {
+        this.test('filterSensitiveData handles circular references', () => {
+            let emitter = new EventsManager();
+            let obj = {safe: 'data'};
+            obj.circular = obj;
+            let result = emitter.filterSensitiveData(obj);
+            this.assert('[CIRCULAR]' === result.circular, 'Should handle circular refs');
+        });
+    }
+
     printSummary()
     {
         console.log('\n'+'='.repeat(50));
@@ -1067,7 +1091,6 @@ class TestEventsManager
         console.log('Passed:', this.passedCount);
         console.log('Failed:', this.testCount - this.passedCount);
         console.log('Success rate:', Math.round((this.passedCount / this.testCount) * 100)+'%');
-
         if(this.testCount - this.passedCount > 0){
             console.log('\nFailed tests:');
             for(let result of this.testResults){
@@ -1076,9 +1099,13 @@ class TestEventsManager
                 }
             }
         }
+        console.log('\n'+'='.repeat(60));
+        if(this.testCount - this.passedCount === 0){
+            console.log('All tests completed successfully!');
+        }
+        console.log('='.repeat(60));
     }
 
 }
 
-let testRunner = new TestEventsManager();
-testRunner.runAllTests();
+module.exports.TestEventsManager = TestEventsManager;
