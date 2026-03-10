@@ -29,8 +29,18 @@ npm test
 **Shortcuts** (`lib/shortcuts.js`):
 - Provides utility methods for object manipulation, property access, and validation
 - Imported as `sc` throughout the Reldens codebase
-- Key methods: `get`, `hasOwn`, `isObject`, `isArray`, `deepMerge`, `deepClone`, etc.
 - Used instead of direct property access or Object.prototype methods
+- Type checks: `isObject`, `isArray`, `isFunction`, `isObjectFunction`, `isString`, `isNumber`, `isInt`, `isFloat`, `isBoolean`, `isSymbol`, `isPromise`, `isTrue`
+- Ownership/existence: `hasOwn`, `get`, `getByPath`, `getByPriority`, `length`
+- Array utilities: `inArray`, `isNotEmptyArray`, `removeFromArray`, `randomValueFromArray`, `arraySort`, `sortObjectKeysBy`, `convertObjectsArrayToObjectByKeys`, `chunk`, `flatten`, `unique`
+- Object utilities: `deepMergeProperties`, `propsAssign`, `pickProps`, `omitProps`, `hasDangerousKeys`
+- Search: `fetchByProperty`, `fetchAllByProperty`, `fetchByPropertyOnObject`, `fetchAllByPropertyOnObject`
+- JSON: `toJson`, `parseJson`, `deepJsonClone`, `toJsonString`
+- String utilities: `startsWith`, `contains`, `cleanMessage`, `slugify`, `sanitize`, `sanitizeUrl`, `camelCase`, `capitalizedCamelCase`, `kebabCase`, `capitalize`, `truncate`, `splitToArray`
+- Number utilities: `roundToPrecision`, `randomInteger`, `randomChars`, `randomCharsWithSymbols`, `randomString`, `clamp`, `parseNumber`, `isValidInteger`
+- Date/time: `getCurrentDate`, `getDateForFileName`, `formatDate`, `getTime`
+- Validation: `isValidUrl`, `isValidIsoCode`, `isSecurePath`, `validateInput`
+- Functional: `debounce`, `throttle`, `serializeFormData`
 
 **EventsManager** (`lib/events-manager.js`):
 - Singleton event system used across Reldens
