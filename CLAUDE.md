@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Package Overview
 
 **@reldens/utils** is a core utility package used throughout the Reldens ecosystem. It provides essential utilities for:
