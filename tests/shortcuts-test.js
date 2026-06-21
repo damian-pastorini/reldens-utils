@@ -673,6 +673,24 @@ class TestShortcuts
         });
     }
 
+    testShuffleArray()
+    {
+        this.test('returns an array with the same elements', () => {
+            let values = [1, 2, 3, 4, 5];
+            let result = sc.shuffleArray(values);
+            this.assert(5 === result.length);
+            this.assert(values.every(value => sc.inArray(value, result)));
+        });
+        this.test('does not mutate the input array', () => {
+            let values = [1, 2, 3];
+            sc.shuffleArray(values);
+            this.assert(3 === values.length && 1 === values[0] && 2 === values[1] && 3 === values[2]);
+        });
+        this.test('returns empty array for non-array', () => {
+            this.assert(0 === sc.shuffleArray(null).length);
+        });
+    }
+
     testRandomInteger()
     {
         this.test('returns integer within range', () => {
