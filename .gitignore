@@ -1,5 +1,10 @@
+.mcp.json
 /.cache
-/.claude
+/.claude/settings.json
+/.claude/settings.local.json
+/.claude/instructions.md
+/CLAUDE.local.md
+/.claude/skills/
 /.env
 /.idea
 /node_modules
@@ -8,3 +13,12 @@
 /ts-node*
 /v8-compile-cache*
 /dev
+/.claude/hook-state.json
+/.playwright-mcp
+/test-results
+/tests/e2e/reports
+/.claude/claude-sessions.md
+/.claude/session-summary-state.json
+/.claude/hook-bypass.flag
+.hooks-ignore
+/.claude/hook-approvals.json

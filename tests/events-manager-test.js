@@ -57,7 +57,8 @@ class TestEventsManager
                 console.error('Test method failed:', methodName, error.message);
             }
         }
-        this.printSummary();
+        let failed = this.printSummary();
+        return {total: this.testCount, passed: this.passedCount, failed};
     }
 
     testConstructorCreatesInstance()
@@ -410,14 +411,14 @@ class TestEventsManager
                 username: 'test',
                 password: 'secret123',
                 authToken: 'token123',
-                apiKey: 'key123',
+                secretKey: 'key123',
                 safe: 'data'
             };
             let result = emitter.filterSensitiveData(obj);
             this.assert('test' === result.username, 'Should keep safe fields');
             this.assert('[FILTERED]' === result.password, 'Should filter password');
             this.assert('[FILTERED]' === result.authToken, 'Should filter token');
-            this.assert('[FILTERED]' === result.apiKey, 'Should filter key');
+            this.assert('[FILTERED]' === result.secretKey, 'Should filter key');
             this.assert('data' === result.safe, 'Should keep safe data');
         });
     }
@@ -450,14 +451,14 @@ class TestEventsManager
                     password: 'secret'
                 },
                 config: {
-                    apiKey: 'key123',
+                    secretKey: 'key123',
                     safe: 'value'
                 }
             };
             let result = emitter.filterSensitiveData(obj);
             this.assert('test' === result.user.name, 'Should keep nested safe fields');
             this.assert('[FILTERED]' === result.user.password, 'Should filter nested password');
-            this.assert('[FILTERED]' === result.config.apiKey, 'Should filter nested key');
+            this.assert('[FILTERED]' === result.config.secretKey, 'Should filter nested key');
             this.assert('value' === result.config.safe, 'Should keep nested safe value');
         });
     }
@@ -530,6 +531,7 @@ class TestEventsManager
     {
         this.test('emit uses sanitized arguments', async () => {
             let emitter = new EventsManager();
+            emitter.enableSensitiveDataFiltering = true;
             let receivedArgs = null;
 
             emitter.on('sanitize-test', (...args) => {
@@ -549,6 +551,7 @@ class TestEventsManager
     {
         this.test('emitSync uses sanitized arguments', () => {
             let emitter = new EventsManager();
+            emitter.enableSensitiveDataFiltering = true;
             let receivedArgs = null;
 
             emitter.on('sanitize-sync-test', (...args) => {
@@ -1084,26 +1087,20 @@ class TestEventsManager
 
     printSummary()
     {
-        console.log('\n'+'='.repeat(50));
-        console.log('TEST SUMMARY');
-        console.log('='.repeat(50));
-        console.log('Total tests:', this.testCount);
-        console.log('Passed:', this.passedCount);
-        console.log('Failed:', this.testCount - this.passedCount);
-        console.log('Success rate:', Math.round((this.passedCount / this.testCount) * 100)+'%');
-        if(this.testCount - this.passedCount > 0){
+        let failedCount = this.testCount - this.passedCount;
+        console.log('\n'+'='.repeat(60));
+        console.log('EVENTS MANAGER TEST SUMMARY');
+        console.log('='.repeat(60));
+        console.log('Total: '+this.testCount+' | Passed: '+this.passedCount+' | Failed: '+failedCount);
+        if(0 < failedCount){
             console.log('\nFailed tests:');
             for(let result of this.testResults){
                 if('FAIL' === result.status){
-                    console.log('-', result.name, ':', result.error);
+                    console.log('  ✗ '+result.name+': '+result.error);
                 }
             }
         }
-        console.log('\n'+'='.repeat(60));
-        if(this.testCount - this.passedCount === 0){
-            console.log('All tests completed successfully!');
-        }
-        console.log('='.repeat(60));
+        return failedCount;
     }
 
 }
