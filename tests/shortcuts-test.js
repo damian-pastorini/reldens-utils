@@ -97,6 +97,25 @@ class TestShortcuts
         this.test('returns false for null obj', () => {
             this.assert(!sc.hasOwn(null, 'a'));
         });
+        this.test('returns true for accessor defined on the prototype', () => {
+            let prototype = Object.defineProperty({}, 'a', {get: () => 1});
+            this.assert(sc.hasOwn(Object.create(prototype), 'a'));
+        });
+        this.test('returns false for prototype accessor without value', () => {
+            let prototype = Object.defineProperty({}, 'a', {get: () => ({}).missing});
+            this.assert(!sc.hasOwn(Object.create(prototype), 'a'));
+        });
+        this.test('returns false for method defined on the prototype', () => {
+            let prototype = {a: () => 1};
+            this.assert(!sc.hasOwn(Object.create(prototype), 'a'));
+        });
+        this.test('returns false for __proto__ accessor from Object.prototype', () => {
+            this.assert(!sc.hasOwn({a: 1}, '__proto__'));
+        });
+        this.test('get returns the value from a prototype accessor', () => {
+            let prototype = Object.defineProperty({}, 'a', {get: () => 5});
+            this.assert(5 === sc.get(Object.create(prototype), 'a', 0));
+        });
     }
 
     testIsTrue()
