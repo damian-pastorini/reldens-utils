@@ -7,41 +7,14 @@
 const assert = require('assert');
 const { spawnSync } = require('child_process');
 const Logger = require('../lib/logger');
+const { UnitTestMethodRunner } = require('./unit-test-method-runner');
 
-class TestLogger
+class TestLogger extends UnitTestMethodRunner
 {
 
     constructor()
     {
-        this.results = {total: 0, passed: 0, failed: 0};
-    }
-
-    test(name, testFn)
-    {
-        this.results.total++;
-        try{
-            testFn();
-            this.results.passed++;
-            process.stdout.write('PASS: '+name+'\n');
-        } catch(error){
-            this.results.failed++;
-            process.stdout.write('FAIL: '+name+' - '+error.message+'\n');
-        }
-    }
-
-    async runAllTests()
-    {
-        process.stdout.write('Running tests for Logger...\n\n');
-        let testMethods = Object.getOwnPropertyNames(TestLogger.prototype).filter(name => name.startsWith('testLogger'));
-        for(let methodName of testMethods){
-            await this[methodName]();
-        }
-        process.stdout.write(
-            '\nLOGGER TEST SUMMARY - Total: '+this.results.total
-            +' | Passed: '+this.results.passed
-            +' | Failed: '+this.results.failed+'\n'
-        );
-        return this.results;
+        super('Logger');
     }
 
     runLoggerScript(scriptBody)

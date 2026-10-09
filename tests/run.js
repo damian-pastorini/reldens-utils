@@ -11,6 +11,8 @@ async function runTests(){
     suites.push(await (new TestEventsManager()).runAllTests());
     const { TestLogger } = require('./logger-test.js');
     suites.push(await (new TestLogger()).runAllTests());
+    const { TestPageRangeProvider } = require('./page-range-provider-test.js');
+    suites.push(await (new TestPageRangeProvider()).runAllTests());
     let totalTests = suites.reduce((sum, s) => sum + s.total, 0);
     let totalPassed = suites.reduce((sum, s) => sum + s.passed, 0);
     let totalFailed = suites.reduce((sum, s) => sum + s.failed, 0);
