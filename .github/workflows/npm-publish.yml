@@ -41,13 +41,18 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.14.0'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Ensure an npm version with trusted publishing support
         run: |
-          npm install -g npm@latest
-          npm --version
+          NPM_VERSION=$(npm --version)
+          echo "Runner has npm $NPM_VERSION on node $(node --version)"
+          NPM_MAJOR=${NPM_VERSION%%.*}
+          if [ "$NPM_MAJOR" -lt 11 ]; then
+            npm install -g npm@11
+            echo "Upgraded to npm $(npm --version)"
+          fi
 
       - name: Read package metadata
         id: meta
