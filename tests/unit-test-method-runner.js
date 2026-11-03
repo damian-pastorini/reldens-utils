@@ -11,13 +11,19 @@ class UnitTestMethodRunner
     {
         this.testedClassName = testedClassName;
         this.results = {total: 0, passed: 0, failed: 0};
+        this.pendingTests = [];
     }
 
     test(name, testFn)
     {
         this.results.total++;
+        this.pendingTests.push(this.runTest(name, testFn));
+    }
+
+    async runTest(name, testFn)
+    {
         try{
-            testFn();
+            await testFn();
             this.results.passed++;
             process.stdout.write('PASS: '+name+'\n');
         } catch(error){
@@ -34,6 +40,8 @@ class UnitTestMethodRunner
         );
         for(let methodName of testMethods){
             await this[methodName]();
+            await Promise.all(this.pendingTests);
+            this.pendingTests = [];
         }
         process.stdout.write(
             '\n'+this.testedClassName.toUpperCase()+' TEST SUMMARY - Total: '+this.results.total

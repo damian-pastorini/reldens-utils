@@ -15,13 +15,19 @@ class TestShortcuts
         this.testCount = 0;
         this.passedCount = 0;
         this.currentTestMethod = '';
+        this.pendingTests = [];
     }
 
     test(name, testFn)
     {
         this.testCount++;
+        this.pendingTests.push(this.runTest(name, testFn));
+    }
+
+    async runTest(name, testFn)
+    {
         try{
-            testFn();
+            await testFn();
             let logMessage = '✓ PASS: '+this.currentTestMethod+' - '+name;
             console.log(logMessage);
             this.passedCount++;
@@ -53,9 +59,11 @@ class TestShortcuts
             this.currentTestMethod = methodName;
             try{
                 await this[methodName]();
+                await Promise.all(this.pendingTests);
             } catch(error){
                 console.error('Test method failed:', methodName, error.message);
             }
+            this.pendingTests = [];
         }
         let failed = this.printSummary();
         return {total: this.testCount, passed: this.passedCount, failed};
